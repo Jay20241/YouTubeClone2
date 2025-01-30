@@ -10,3 +10,5 @@ class ApiResponse {
     // > 400 => is for ApiError.
   }
 }
+
+export { ApiResponse };

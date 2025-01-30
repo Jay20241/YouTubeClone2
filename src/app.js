@@ -21,5 +21,13 @@ app.use(express.static("public")); //used to store files like images, favicon pu
 //cookie parser
 app.use(cookieParser()); //CRUD operations on cookies
 
+//routes import
+import userRouter from "./routes/user.routes.js";
+
+//routes declaration //uses middleware
+//app.use("/users", userRouter); //  /users is prefix => so the url is http://localhost:8000/users/register
+
+app.use("/api/v1/users", userRouter)
+
 export { app }
  
