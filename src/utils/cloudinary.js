@@ -1,4 +1,6 @@
-import { v2 as cloudinary } from "cloudinary";
+import dotenv from "dotenv";
+dotenv.config();
+import {v2 as cloudinary} from "cloudinary";
 import fs from "fs"; 
 //fs means file system
 //delete means unlinking - os term
@@ -15,6 +17,7 @@ import fs from "fs";
    const uploadOnCloudinary = async (localFilePath) => {
     try {
         if (!localFilePath) {
+            console.log("Local path passed to uploadOnCloudinary is null");
             return null;
         }
         //upload the file on cloudinary
@@ -24,10 +27,11 @@ import fs from "fs";
         //file has been uploaded successfully
         //well, don't print the url, it's a security issue in production
         console.log("File uploaded successfully on cloudinary", response.url); 
-
+        fs.unlinkSync(localFilePath);
         //return response.url;
         return response;
     } catch (error) {
+        console.log("Local path passed to uploadOnCloudinary is null in catch block", error);
         fs.unlinkSync(localFilePath); //delete the file from local storage
         //write sync means it will wait for the file to be deleted, not do anything until the file is deleted
         return null;

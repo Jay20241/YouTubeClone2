@@ -1,8 +1,25 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {ApiError} from '../utils/ApiError.js';
-import { User } from '../models/user.model.js';
+import { User } from '../models/user.model.js'; //This User will always call the mongoDB.
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+
+
+const generateAccessAndRefreshTokens = async(userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = await user.generateAccessToken()
+        const refreshToken = await user.generateRefreshToken()
+
+        user.refreshToken = refreshToken //add the refresh token to the database
+        await user.save({ validateBeforeSave: false }) //validateBeforeSave is false becoz we are not updating the user, we are just updating the refreshToken field. If we don't do this, it will ask for the password and we don't want that.
+        
+        return { accessToken, refreshToken }
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating tokens")
+    }
+}
 
 const registerUser = asyncHandler(async (req, res) => {
 
@@ -48,7 +65,7 @@ const registerUser = asyncHandler(async (req, res) => {
     
     
     //is user already exists?
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [
             { email },
             { username }
@@ -68,7 +85,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is required")
+        throw new ApiError(400, "Avatar file is required in Local Path")
     }
 
     //=============================================================================================================================================================================================
@@ -78,7 +95,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
     
     if (!avatar) {
-        throw new ApiError(400, "Avatar file is required")
+        throw new ApiError(400, "Avatar file is required in Cloudinary")
     }
 
     //=============================================================================================================================================================================================
@@ -101,4 +118,86 @@ const registerUser = asyncHandler(async (req, res) => {
 
 })
 
-export { registerUser, }
+const loginUser = asyncHandler(async (req, res) => {
+    //req body -> fetch data
+    //username or email
+    //find the user
+    //password check
+    //access token and refresh token
+    //send secure cookie
+
+    const {email, username, password} = req.body;
+
+    if (!username || !email) {
+        throw new ApiError(400, "Username or email is required")
+    }
+
+    const user = await User.findOne({
+        $or:[ //$or is a mongoDB operator
+            {email},
+            {username}
+        ]
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User not found")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid password")
+    }
+
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id)
+
+    //see if the new query is expensive or not - if expensive, then just update user. If not, then make a new query
+    const loogedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+    //send cookies:
+    const options = {
+        httpOnly: true,
+        secure: true //By-default the cookie is modifiable by the client(frontend) side. So, we need to make it secure.
+    }
+
+    return res.status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(new ApiResponse(200, {
+        user: loogedInUser,accessToken,refreshToken //This is used in mobile-app development, so that user can save the cookies in the local storage ->not recommended but can be done if required
+    }, "User logged in successfully"))
+
+
+
+})
+
+const logoutUser = asyncHandler(async (req, res)=> {
+    //clear the cookies
+    //reset the refresh token
+    //make our own middleware
+    //cookie is two way --> req.cookies, res.cookie
+
+    await User.findByIdAndUpdate(req.user._id, 
+        {
+            $set: 
+            { 
+                refreshToken: undefined
+            }
+        },
+       { new: true }
+    )
+
+    //clear the cookies
+    const options = {
+        httpOnly: true,
+        secure: true //By-default the cookie is modifiable by the client(frontend) side. So, we need to make it secure.
+    }
+    return res.status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"))
+    
+})
+
+
+export { registerUser, loginUser, logoutUser }
