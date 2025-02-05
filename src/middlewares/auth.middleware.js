@@ -2,7 +2,7 @@
 import { ApiError } from '../utils/ApiError.js';
 import {asyncHandler} from '../utils/asyncHandler.js';
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import { User } from '../models/user.model.js';
 
 //This middleware can be used in many places like savePost, LikePost, etc. //without auth, you can't LikePost, SavePost, etc.
 export const verifyJWT = asyncHandler(async (req, _, next) => { //_ is used when we don't need the second parameter - res
