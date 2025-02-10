@@ -170,9 +170,6 @@ const loginUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {
         user: loogedInUser,accessToken,refreshToken //This is used in mobile-app development, so that user can save the cookies in the local storage ->not recommended but can be done if required
     }, "User logged in successfully"))
-
-
-
 })
 
 const logoutUser = asyncHandler(async (req, res)=> {
