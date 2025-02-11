@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {ApiError} from '../utils/ApiError.js';
 import { User } from '../models/user.model.js'; //This User will always call the mongoDB.
-import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import jwt from "jsonwebtoken";
 
@@ -266,7 +266,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 const getCurrentUser = asyncHandler(async (req, res) => {
     return res.status(200)
-    .json(200, req.user, "Current User fetched Successfully")
+    .json(new ApiResponse(200, req.user, "Current User fetched Successfully"))
 })
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
@@ -304,6 +304,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is missing")
     }
+
+    // --------------------------------------TODO: DELETE THE OLD AVATAR-------------------Do this !!!!!!!! ---------------------------------------------------
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
 
@@ -358,6 +360,91 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user,"CoverImg updated successfully"))
 })
 
+//$first: "$author_details" or $arrayElemAt: ["$author_details", 0]  -  0th element
+//aggregation pipeline
+// join two schemas
+
+const getUserChannelProfile = asyncHandler(async (req,res)=>{
+    //channel page is provided by the URL- So we use req.params
+
+    const {username} = req.params
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+    //User.find({username})
+
+    //User.aggregate([]) it returns array objects.
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "mySubscribers"
+            }
+        },
+
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            }
+        },
+
+        {
+            $addFields: {
+                subscribersCount: {
+                    $size: "$mySubscribers"
+                },
+                channelSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id, "$mySubscribers.subscriber"]},
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+
+        {
+            $project: {
+                fullname: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1,
+                createdAt: 1
+            }
+        }
+
+    ]) 
+
+    if (!channel?.length) {
+        throw new ApiError(404, "Channel does not exists")
+    }
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, channel[0], "User channel fetched successfully."))
+
+})
+
 export { 
     registerUser, 
     loginUser, 
@@ -367,5 +454,6 @@ export {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile
 }

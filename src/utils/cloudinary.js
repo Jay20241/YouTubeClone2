@@ -36,6 +36,24 @@ import fs from "fs";
         //write sync means it will wait for the file to be deleted, not do anything until the file is deleted
         return null;
     }
-} 
+}
 
-export { uploadOnCloudinary }
+  const deleteFromCloudinary = async (localFilePath) => {
+    try {
+        if (!localFilePath) {
+            console.log("Local path passed is null");
+            return null;
+        }
+
+        const response = await cloudinary.uploader.destroy(localFilePath,{
+            resource_type: "auto",
+        })
+
+        
+    } catch (error) {
+        console.log("Err: ", error);
+        return null;
+    }
+  }
+
+export { uploadOnCloudinary, deleteFromCloudinary }
